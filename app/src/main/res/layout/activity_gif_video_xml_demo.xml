@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="GIF 和视频帧示例"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <!-- GIF 动画示例 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="GIF 动画示例"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="自动检测 GIF 格式并播放动画（API 28+）"
+                    android:textSize="14sp"
+                    android:textColor="#666"
+                    android:paddingBottom="8dp" />
+
+                <ImageView
+                    android:id="@+id/imageViewGif"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:scaleType="centerCrop"
+                    android:background="#F0F0F0" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="代码：Lumen.with(context).load(&quot;https://...gif&quot;).into(imageView)"
+                    android:textSize="12sp"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 视频帧提取示例 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="视频帧提取示例"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp" />
+
+                <Button
+                    android:id="@+id/buttonSelectVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="选择视频文件"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 第一帧 -->
+                <TextView
+                    android:id="@+id/textViewVideoInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="请选择一个视频文件"
+                    android:textSize="14sp"
+                    android:textColor="#666"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/textViewFirstFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="第一帧（0秒）"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/imageViewVideoFirstFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:scaleType="centerCrop"
+                    android:background="#F0F0F0"
+                    android:visibility="gone" />
+
+                <!-- 中间帧 -->
+                <TextView
+                    android:id="@+id/textViewMidFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="中间帧"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/imageViewVideoMidFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:scaleType="centerCrop"
+                    android:background="#F0F0F0"
+                    android:visibility="gone" />
+
+                <!-- 视频帧 + 转换器 -->
+                <TextView
+                    android:id="@+id/textViewVideoWithTransform"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="视频帧 + 圆角转换器"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/imageViewVideoWithTransform"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:scaleType="centerCrop"
+                    android:background="#F0F0F0"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="代码示例：\n// 第一帧\nLumen.with(context)\n    .loadVideo(videoUri)\n    .into(imageView)\n\n// 指定时间点\nval timeUs = 5_000_000L // 5秒\nLumen.with(context)\n    .loadVideo(videoUri, timeUs)\n    .into(imageView)\n\n// 视频帧 + 转换器\nLumen.with(context)\n    .loadVideo(videoUri) {\n        roundedCorners(16f)\n    }\n    .into(imageView)"
+                    android:textSize="12sp"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 最佳实践说明 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="最佳实践"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1. GIF 动画：\n   • API 28+ 完整支持动画播放\n   • API &lt; 28 自动降级为静态图片\n   • 动画自动启动，无需手动调用\n\n2. 视频帧提取：\n   • 支持 File 和 Uri 两种方式\n   • 时间单位：微秒（1秒 = 1,000,000微秒）\n   • 提取的帧支持所有转换器\n   • 结果自动缓存，提升性能\n\n3. 性能优化：\n   • 视频帧提取在 IO 线程执行\n   • 支持 RecyclerView 自动取消\n   • 内存缓存减少重复提取"
+                    android:textSize="12sp"
+                    android:lineSpacingMultiplier="1.2" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+</ScrollView>
+

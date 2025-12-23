@@ -1,6 +1,9 @@
 package com.xichen.lumen.view.compose
 
 import android.graphics.Bitmap
+import android.graphics.drawable.AnimatedImageDrawable
+import android.os.Build
+import android.widget.ImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import com.xichen.lumen.core.ImageData
 import com.xichen.lumen.core.ImageState
 import com.xichen.lumen.core.Lumen
@@ -98,6 +102,22 @@ fun LumenImage(
                 contentDescription = contentDescription,
                 modifier = modifier,
                 contentScale = contentScale
+            )
+        }
+        is ImageState.SuccessAnimated -> {
+            // 使用 AndroidView 显示 Drawable（支持 GIF 动画）
+            AndroidView(
+                factory = { ctx ->
+                    ImageView(ctx).apply {
+                        setImageDrawable(state.drawable)
+                        // 如果是 AnimatedImageDrawable，自动启动动画
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && 
+                            state.drawable is AnimatedImageDrawable) {
+                            (state.drawable as AnimatedImageDrawable).start()
+                        }
+                    }
+                },
+                modifier = modifier
             )
         }
         is ImageState.Error -> {

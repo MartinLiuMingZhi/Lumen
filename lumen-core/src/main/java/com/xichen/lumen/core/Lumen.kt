@@ -47,7 +47,7 @@ class Lumen private constructor(
      * @return 图片状态 Flow
      */
     fun load(request: ImageRequest): Flow<ImageState> = flow {
-        // 1. 检查内存缓存
+        // 1. 检查内存缓存（仅对静态图片）
         val cachedBitmap = memoryCache.get(request.cacheKey)
         if (cachedBitmap != null) {
             emit(ImageState.Success(cachedBitmap))
@@ -58,51 +58,96 @@ class Lumen private constructor(
         emit(ImageState.Loading)
 
         try {
-            // 3. 检查磁盘缓存（使用数据源 key，不包含解密器和转换器）
-            // 磁盘缓存存储原始数据（可能是加密的），保证"不落明文磁盘"原则
-            val dataSourceCacheKey = request.data.key
-            var rawData: ByteArray = diskCache.get(dataSourceCacheKey) ?: run {
-                // 4. 如果磁盘缓存未命中，从数据源获取原始数据
-                val fetcher = FetcherFactory.create(context, request.data)
-                val fetchedData = withContext(Dispatchers.IO) {
-                    fetcher.fetch()
+            when (val data = request.data) {
+                // 视频数据源：直接提取帧
+                is ImageData.Video -> {
+                    var bitmap = withContext(Dispatchers.IO) {
+                        VideoFrameExtractor.extractFrame(data.file, data.timeUs)
+                    }
+
+                    // 应用转换器
+                    request.transformers.forEach { transformer ->
+                        bitmap = withContext(Dispatchers.Default) {
+                            transformer.transform(bitmap)
+                        }
+                    }
+
+                    // 存入内存缓存
+                    memoryCache.put(request.cacheKey, bitmap)
+                    emit(ImageState.Success(bitmap))
                 }
 
-                // 5. 存入磁盘缓存（存储原始数据，可能是加密的）
-                // 不存储解密后的数据，保证安全性和扩展性
-                diskCache.put(dataSourceCacheKey, fetchedData)
-                
-                fetchedData
-            }
+                is ImageData.VideoUri -> {
+                    var bitmap = withContext(Dispatchers.IO) {
+                        VideoFrameExtractor.extractFrame(context, data.uri, data.timeUs)
+                    }
 
-            // 6. 解密（如果需要）- 在从磁盘缓存读取后解密
-            // 这样既保证了"不落明文磁盘"，又支持用户自定义任何解密算法
-            var data = rawData
-            request.decryptor?.let { decryptor ->
-                data = withContext(Dispatchers.Default) {
-                    decryptor.decrypt(rawData)
+                    // 应用转换器
+                    request.transformers.forEach { transformer ->
+                        bitmap = withContext(Dispatchers.Default) {
+                            transformer.transform(bitmap)
+                        }
+                    }
+
+                    // 存入内存缓存
+                    memoryCache.put(request.cacheKey, bitmap)
+                    emit(ImageState.Success(bitmap))
+                }
+
+                // 其他数据源：图片文件（可能包含 GIF）
+                else -> {
+                    // 3. 检查磁盘缓存（使用数据源 key，不包含解密器和转换器）
+                    val dataSourceCacheKey = data.key
+                    var rawData: ByteArray = diskCache.get(dataSourceCacheKey) ?: run {
+                        // 4. 如果磁盘缓存未命中，从数据源获取原始数据
+                        val fetcher = FetcherFactory.create(context, data)
+                            ?: throw IllegalStateException("Unsupported data source: $data")
+                        val fetchedData = withContext(Dispatchers.IO) {
+                            fetcher.fetch()
+                        }
+
+                        // 5. 存入磁盘缓存（存储原始数据，可能是加密的）
+                        diskCache.put(dataSourceCacheKey, fetchedData)
+                        fetchedData
+                    }
+
+                    // 6. 解密（如果需要）
+                    var decryptedData = rawData
+                    request.decryptor?.let { decryptor ->
+                        decryptedData = withContext(Dispatchers.Default) {
+                            decryptor.decrypt(rawData)
+                        }
+                    }
+
+                    // 7. 检测是否为 GIF
+                    if (Decoder.isGif(decryptedData)) {
+                        // GIF 动画：使用 decodeAnimated
+                        val drawable = withContext(Dispatchers.Default) {
+                            Decoder.decodeAnimated(context, decryptedData)
+                        }
+                        // GIF 动画不存入内存缓存（Drawable 不支持）
+                        emit(ImageState.SuccessAnimated(drawable))
+                    } else {
+                        // 静态图片：使用 decode
+                        var bitmap = withContext(Dispatchers.Default) {
+                            Decoder.decode(decryptedData)
+                        }
+
+                        // 8. 转换（如果需要）
+                        request.transformers.forEach { transformer ->
+                            bitmap = withContext(Dispatchers.Default) {
+                                transformer.transform(bitmap)
+                            }
+                        }
+
+                        // 9. 存入内存缓存
+                        memoryCache.put(request.cacheKey, bitmap)
+                        emit(ImageState.Success(bitmap))
+                    }
                 }
             }
-
-            // 7. 解码
-            var bitmap = withContext(Dispatchers.Default) {
-                Decoder.decode(data)
-            }
-
-            // 8. 转换（如果需要）
-            request.transformers.forEach { transformer ->
-                bitmap = withContext(Dispatchers.Default) {
-                    transformer.transform(bitmap)
-                }
-            }
-
-            // 9. 存入内存缓存（存储转换后的 Bitmap）
-            memoryCache.put(request.cacheKey, bitmap)
-
-            // 10. 发送成功状态
-            emit(ImageState.Success(bitmap))
         } catch (e: Exception) {
-            // 11. 发送错误状态
+            // 发送错误状态
             emit(ImageState.Error(e))
         }
     }.flowOn(Dispatchers.IO)

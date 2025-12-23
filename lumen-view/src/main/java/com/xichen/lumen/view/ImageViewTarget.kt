@@ -1,8 +1,10 @@
 package com.xichen.lumen.view
 
 import android.graphics.Outline
+import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.ImageView
@@ -79,6 +81,15 @@ class ImageViewTarget(
                                     imageView.post {
                                         applyRoundedCornersToView(roundedCornersTransformer)
                                     }
+                                }
+                            }
+                            is ImageState.SuccessAnimated -> {
+                                android.util.Log.d("Lumen", "Successfully loaded animated image: ${request.data.key}")
+                                imageView.setImageDrawable(state.drawable)
+                                // 如果是 AnimatedImageDrawable，自动启动动画
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && 
+                                    state.drawable is AnimatedImageDrawable) {
+                                    (state.drawable as AnimatedImageDrawable).start()
                                 }
                             }
                             is ImageState.Error -> {

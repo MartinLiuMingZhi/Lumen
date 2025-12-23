@@ -1,6 +1,7 @@
 package com.xichen.lumen.core
 
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 
 /**
  * Lumen 图片加载状态模型
@@ -14,10 +15,16 @@ sealed class ImageState {
     object Loading : ImageState()
 
     /**
-     * 加载成功状态
+     * 加载成功状态（静态图片）
      * @param bitmap 加载成功的 Bitmap
      */
     data class Success(val bitmap: Bitmap) : ImageState()
+
+    /**
+     * 加载成功状态（GIF 动画）
+     * @param drawable 动画 Drawable（如 AnimatedImageDrawable）
+     */
+    data class SuccessAnimated(val drawable: Drawable) : ImageState()
 
     /**
      * 加载失败状态

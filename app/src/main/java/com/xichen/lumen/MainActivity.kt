@@ -77,6 +77,28 @@ fun MainScreen() {
             ) {
                 Text("XML 布局示例")
             }
+            
+            Button(
+                onClick = {
+                    context.startActivity(Intent(context, GifVideoDemoActivity::class.java))
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text("GIF 和视频帧示例 (Compose)")
+            }
+            
+            Button(
+                onClick = {
+                    context.startActivity(Intent(context, GifVideoXmlDemoActivity::class.java))
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text("GIF 和视频帧示例 (XML)")
+            }
         }
     }
 }

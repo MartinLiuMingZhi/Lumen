@@ -138,14 +138,17 @@ class ResourceFetcher(
  * Lumen Fetcher 工厂
  * 
  * 根据 ImageData 类型创建对应的 Fetcher 实例
+ * 注意：视频数据源（Video、VideoUri）不需要 Fetcher，直接使用 VideoFrameExtractor
  */
 object FetcherFactory {
-    fun create(context: Context, data: ImageData): Fetcher {
+    fun create(context: Context, data: ImageData): Fetcher? {
         return when (data) {
             is ImageData.Url -> NetworkFetcher(data.url)
             is ImageData.File -> FileFetcher(data.file)
             is ImageData.Uri -> UriFetcher(context, data.uri)
             is ImageData.Resource -> ResourceFetcher(context, data.resId)
+            is ImageData.Video -> null // 视频使用 VideoFrameExtractor，不需要 Fetcher
+            is ImageData.VideoUri -> null // 视频使用 VideoFrameExtractor，不需要 Fetcher
         }
     }
 }

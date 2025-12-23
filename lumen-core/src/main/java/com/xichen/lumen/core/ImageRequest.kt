@@ -63,7 +63,7 @@ data class ImageRequest(
 /**
  * Lumen 图片数据源
  * 
- * 支持多种数据源类型：网络 URL、本地文件、Android Uri、资源 ID
+ * 支持多种数据源类型：网络 URL、本地文件、Android Uri、资源 ID、视频文件
  */
 sealed class ImageData {
     abstract val key: String
@@ -94,6 +94,30 @@ sealed class ImageData {
      */
     data class Resource(val resId: Int) : ImageData() {
         override val key: String = "res:$resId"
+    }
+
+    /**
+     * 视频文件（用于提取视频帧）
+     * @param file 视频文件
+     * @param timeUs 提取帧的时间点（微秒），默认 0（第一帧）
+     */
+    data class Video(
+        val file: java.io.File,
+        val timeUs: Long = 0
+    ) : ImageData() {
+        override val key: String = "video:${file.absolutePath}:$timeUs"
+    }
+
+    /**
+     * 视频 Uri（用于提取视频帧）
+     * @param uri 视频 Uri
+     * @param timeUs 提取帧的时间点（微秒），默认 0（第一帧）
+     */
+    data class VideoUri(
+        val uri: android.net.Uri,
+        val timeUs: Long = 0
+    ) : ImageData() {
+        override val key: String = "video_uri:$uri:$timeUs"
     }
 }
 

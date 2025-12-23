@@ -31,6 +31,14 @@
             android:name=".XmlDemoActivity"
             android:exported="false"
             android:label="XML Demo" />
+        <activity
+            android:name=".GifVideoDemoActivity"
+            android:exported="false"
+            android:label="GIF Video Demo (Compose)" />
+        <activity
+            android:name=".GifVideoXmlDemoActivity"
+            android:exported="false"
+            android:label="GIF Video Demo (XML)" />
     </application>
 
 </manifest>

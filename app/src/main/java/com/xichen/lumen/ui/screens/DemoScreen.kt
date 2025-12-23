@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xichen.lumen.ui.components.*
+import com.xichen.lumen.ui.components.GifAndVideoSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,11 @@ fun DemoScreen() {
             
             // Compose 示例
             ComposeSection()
+            
+            Divider()
+            
+            // GIF 和视频帧示例
+            GifAndVideoSection()
         }
     }
 }
