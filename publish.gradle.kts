@@ -168,8 +168,8 @@ afterEvaluate {
     tasks.matching { task ->
         task.name.startsWith("publish") && 
         (task.name.contains("Release") || task.name == "publish" || task.name == "publishToMavenLocal")
-    }.configureEach { task ->
-        task.doFirst {
+    }.configureEach {
+        doFirst {
             val publishing = extensions.findByType<PublishingExtension>()
             if (publishing == null) {
                 throw GradleException("PublishingExtension not found for ${project.name}")

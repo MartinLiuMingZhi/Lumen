@@ -1,0 +1,283 @@
+name: Build Demo APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'app/**'
+      - 'lumen/**'
+      - 'lumen-core/**'
+      - 'lumen-view/**'
+      - 'lumen-transform/**'
+      - 'build.gradle.kts'
+      - 'gradle/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'app/**'
+      - 'lumen/**'
+      - 'lumen-core/**'
+      - 'lumen-view/**'
+      - 'lumen-transform/**'
+      - 'build.gradle.kts'
+      - 'gradle/**'
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      build_type:
+        description: 'Build type (debug or release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      create_release:
+        description: 'Create GitHub Release with APK'
+        required: false
+        default: false
+        type: boolean
+
+# 并发控制：允许同时运行多个构建任务（不同分支/PR）
+concurrency:
+  group: build-demo-${{ github.ref }}
+  cancel-in-progress: true  # 取消同一分支的旧构建
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 用于创建Release
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          cache-read-only: false
+          gradle-home-cache-includes: |
+            caches
+            notifications
+            jdks
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Get version info
+        id: version
+        run: |
+          VERSION_NAME=$(grep "^VERSION_NAME=" gradle.properties | cut -d'=' -f2 || echo "1.0.0")
+          APP_VERSION=$(grep "versionName" app/build.gradle.kts | head -1 | sed -n 's/.*versionName = "\(.*\)".*/\1/p' || echo "1.0")
+          APP_VERSION_CODE=$(grep "versionCode" app/build.gradle.kts | head -1 | sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' || echo "1")
+          
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "app_version_code=$APP_VERSION_CODE" >> $GITHUB_OUTPUT
+          
+          # 生成构建信息
+          BUILD_DATE=$(date +'%Y%m%d-%H%M%S')
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
+          fi
+          
+          echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "build_type=${{ github.event.inputs.build_type || 'release' }}" >> $GITHUB_OUTPUT
+          
+          echo "📦 Version Info:"
+          echo "  Library Version: $VERSION_NAME"
+          echo "  App Version: $APP_VERSION ($APP_VERSION_CODE)"
+          echo "  Build Date: $BUILD_DATE"
+          echo "  Commit: $COMMIT_SHA"
+          echo "  Branch: $BRANCH_NAME"
+      
+      - name: Build APK
+        id: build
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          echo "🔨 Building $BUILD_TYPE APK..."
+          
+          # 清理之前的构建
+          ./gradlew clean --no-daemon --console=plain || true
+          
+          if [ "$BUILD_TYPE" == "release" ]; then
+            ./gradlew :app:assembleRelease \
+              --parallel \
+              --max-workers=4 \
+              --stacktrace \
+              --no-daemon \
+              --console=plain
+          else
+            ./gradlew :app:assembleDebug \
+              --parallel \
+              --max-workers=4 \
+              --stacktrace \
+              --no-daemon \
+              --console=plain
+          fi
+          
+          if [ $? -eq 0 ]; then
+            echo "build_success=true" >> $GITHUB_OUTPUT
+            echo "✅ Build completed successfully"
+          else
+            echo "build_success=false" >> $GITHUB_OUTPUT
+            echo "❌ Build failed"
+            exit 1
+          fi
+      
+      - name: Find APK
+        id: find_apk
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          
+          if [ "$BUILD_TYPE" == "release" ]; then
+            # 优先查找 Lumen.apk，如果不存在则查找任何 .apk 文件
+            APK_PATH=$(find app/build/outputs/apk/release -name "Lumen.apk" | head -1)
+            if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+              APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+            fi
+          else
+            # 优先查找 Lumen-debug.apk，如果不存在则查找任何 .apk 文件
+            APK_PATH=$(find app/build/outputs/apk/debug -name "Lumen-debug.apk" | head -1)
+            if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+              APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+            fi
+          fi
+          
+          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+            echo "❌ APK not found!"
+            echo "Searched in: app/build/outputs/apk/$BUILD_TYPE"
+            ls -la app/build/outputs/apk/$BUILD_TYPE/ || true
+            exit 1
+          fi
+          
+          APK_NAME=$(basename "$APK_PATH")
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Found APK: $APK_NAME ($APK_SIZE)"
+          ls -lh "$APK_PATH"
+      
+      - name: Get APK info
+        id: apk_info
+        run: |
+          APK_PATH="${{ steps.find_apk.outputs.apk_path }}"
+          
+          # 使用 aapt 获取 APK 信息（如果可用）
+          if command -v aapt &> /dev/null; then
+            PACKAGE_NAME=$(aapt dump badging "$APK_PATH" | grep "package:" | sed "s/.*name='\([^']*\)'.*/\1/")
+            VERSION_NAME=$(aapt dump badging "$APK_PATH" | grep "package:" | sed "s/.*versionName='\([^']*\)'.*/\1/")
+            VERSION_CODE=$(aapt dump badging "$APK_PATH" | grep "package:" | sed "s/.*versionCode='\([^']*\)'.*/\1/")
+            
+            echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+            echo "apk_version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+            echo "apk_version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  aapt not available, skipping APK info extraction"
+          fi
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-apk-${{ steps.version.outputs.build_type }}-${{ steps.version.outputs.build_date }}
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
+          compression-level: 6
+      
+      - name: Create GitHub Release
+        if: |
+          github.event_name == 'workflow_dispatch' && 
+          github.event.inputs.create_release == 'true' &&
+          steps.build.outputs.build_success == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: demo-v${{ steps.version.outputs.app_version }}-${{ steps.version.outputs.build_date }}
+          name: Demo APK v${{ steps.version.outputs.app_version }} (${{ steps.version.outputs.build_date }})
+          body: |
+            ## 📱 Demo APK Release
+            
+            ### 📦 Build Information
+            
+            - **Library Version**: `${{ steps.version.outputs.version_name }}`
+            - **App Version**: `${{ steps.version.outputs.app_version }}` (Code: `${{ steps.version.outputs.app_version_code }}`)
+            - **Build Type**: `${{ github.event.inputs.build_type || 'release' }}`
+            - **Build Date**: `${{ steps.version.outputs.build_date }}`
+            - **Commit**: `${{ steps.version.outputs.commit_sha }}`
+            - **Branch**: `${{ steps.version.outputs.branch_name }}`
+            - **APK Size**: `${{ steps.find_apk.outputs.apk_size }}`
+            
+            ### 📥 Installation
+            
+            1. Download the APK file below
+            2. Enable "Install from unknown sources" on your Android device
+            3. Install the APK and enjoy testing the demo!
+            
+            ### ⚠️ Note
+            
+            This is a demo APK for testing purposes. For production use, please use the library from Maven Central.
+            
+            ### 🔗 Links
+            
+            - [Maven Central](https://repo1.maven.org/maven2/io/github/xichenx/)
+            - [Documentation](../../README.md)
+          files: ${{ steps.find_apk.outputs.apk_path }}
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## 📊 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Status | ${{ steps.build.outputs.build_success == 'true' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Type | \`${{ github.event.inputs.build_type || 'release' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Library Version | \`${{ steps.version.outputs.version_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| App Version | \`${{ steps.version.outputs.app_version }}\` (\`${{ steps.version.outputs.app_version_code }}\`) |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK Name | \`${{ steps.find_apk.outputs.apk_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK Size | \`${{ steps.find_apk.outputs.apk_size }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Date | \`${{ steps.version.outputs.build_date }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ steps.version.outputs.commit_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ steps.version.outputs.branch_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.build.outputs.build_success }}" == "true" ]; then
+            echo "### ✅ Build completed successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📥 **Download the APK from the Artifacts section above**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📱 Installation Instructions" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. Download the APK from the Artifacts section" >> $GITHUB_STEP_SUMMARY
+            echo "2. Enable \"Install from unknown sources\" on your Android device" >> $GITHUB_STEP_SUMMARY
+            echo "3. Transfer the APK to your device and install it" >> $GITHUB_STEP_SUMMARY
+            echo "4. Open the app and test the demo features" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Build failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the build logs above for error details." >> $GITHUB_STEP_SUMMARY
+          fi
+

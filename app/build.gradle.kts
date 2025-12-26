@@ -28,6 +28,9 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // Debug 配置
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -41,6 +44,36 @@ android {
     }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
+    }
+}
+
+// 配置APK输出名称为 Lumen.apk
+// 在构建任务完成后重命名 APK
+afterEvaluate {
+    tasks.named("assembleRelease") {
+        doLast {
+            val releaseDir = file("build/outputs/apk/release")
+            releaseDir.listFiles()?.forEach { apkFile ->
+                if (apkFile.name.endsWith(".apk") && apkFile.name != "Lumen.apk") {
+                    val targetApk = File(releaseDir, "Lumen.apk")
+                    apkFile.renameTo(targetApk)
+                    println("✅ Renamed APK to: ${targetApk.name}")
+                }
+            }
+        }
+    }
+
+    tasks.named("assembleDebug") {
+        doLast {
+            val debugDir = file("build/outputs/apk/debug")
+            debugDir.listFiles()?.forEach { apkFile ->
+                if (apkFile.name.endsWith(".apk") && apkFile.name != "Lumen-debug.apk") {
+                    val targetApk = File(debugDir, "Lumen-debug.apk")
+                    apkFile.renameTo(targetApk)
+                    println("✅ Renamed APK to: ${targetApk.name}")
+                }
+            }
+        }
     }
 }
 
