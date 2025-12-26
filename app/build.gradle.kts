@@ -40,7 +40,7 @@ android {
             val keyPassword = project.findProperty("KEY_PASSWORD") as String?
                 ?: System.getenv("KEY_PASSWORD")
             
-            // 如果配置了签名信息，则使用签名配置
+            // 只有当所有签名信息都配置完整时才设置签名配置
             if (keystoreFile != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
                 val keystorePath = file(keystoreFile)
                 if (keystorePath.exists()) {
@@ -66,8 +66,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // 使用release签名配置
-            signingConfig = signingConfigs.getByName("release")
+            // 只有当签名配置的 storeFile 存在时才应用签名配置
+            val releaseSigningConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfig.storeFile != null && releaseSigningConfig.storeFile!!.exists()) {
+                signingConfig = releaseSigningConfig
+            } else {
+                // 不设置 signingConfig，使用默认的未签名构建
+            }
         }
         debug {
             // Debug 配置（使用默认debug签名，无需配置）

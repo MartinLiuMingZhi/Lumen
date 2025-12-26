@@ -64,7 +64,14 @@ jobs:
             mkdir -p app/keystore
             
             # 从secrets读取keystore文件（base64编码）
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore/lumen-release.jks
+            # 处理 Windows certutil -encode 添加的头部和尾部标记
+            # certutil 会在编码内容前后添加 "-----BEGIN CERTIFICATE-----" 和 "-----END CERTIFICATE-----"
+            # 需要先去除这些标记，只保留纯 Base64 内容
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | \
+              sed -e '/-----BEGIN CERTIFICATE-----/d' \
+                  -e '/-----END CERTIFICATE-----/d' \
+                  -e '/^$/d' | \
+              base64 -d > app/keystore/lumen-release.jks
             chmod 600 app/keystore/lumen-release.jks
             
             # 验证keystore文件是否创建成功
