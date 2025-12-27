@@ -291,19 +291,39 @@ jobs:
             fi
           fi
           
-          # 提取密钥 ID
-          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^(sec|SEC)" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          # 提取密钥 ID（长格式）
+          KEY_ID_LONG=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^(sec|SEC)" | head -1 | awk '{print $2}' | cut -d'/' -f2)
           
-          if [ -z "$KEY_ID" ]; then
+          if [ -z "$KEY_ID_LONG" ]; then
             echo "❌ Failed to extract GPG key ID"
             echo "   Listing available keys for debugging:"
             gpg --list-secret-keys --keyid-format LONG 2>/dev/null || true
             exit 1
           fi
           
-          echo "GPG_KEY_ID=$KEY_ID" >> $GITHUB_ENV
+          # Gradle 签名插件需要短格式（8位十六进制）
+          # 提取短格式（最后8位，去掉可能的换行符）
+          KEY_ID_SHORT=$(echo "$KEY_ID_LONG" | tail -c 9 | tr -d '\n\r ')
+          
+          # 验证短格式密钥 ID（应该是8位十六进制）
+          if [ ${#KEY_ID_SHORT} -ne 8 ]; then
+            echo "⚠️  Short key ID length is ${#KEY_ID_SHORT}, expected 8"
+            # 如果提取失败，尝试从长格式中提取最后8位
+            KEY_ID_SHORT=$(echo "$KEY_ID_LONG" | grep -oE "[0-9A-Fa-f]{8}$" | tail -1)
+          fi
+          
+          if [ -z "$KEY_ID_SHORT" ] || [ ${#KEY_ID_SHORT} -ne 8 ]; then
+            echo "❌ Failed to extract short GPG key ID"
+            echo "   Long key ID: $KEY_ID_LONG"
+            exit 1
+          fi
+          
+          # Gradle 使用短格式（8位）
+          echo "GPG_KEY_ID=$KEY_ID_SHORT" >> $GITHUB_ENV
+          echo "GPG_KEY_ID_LONG=$KEY_ID_LONG" >> $GITHUB_ENV
           echo "gpg_configured=true" >> $GITHUB_OUTPUT
-          echo "✅ GPG Key ID: $KEY_ID"
+          echo "✅ GPG Key ID (Long): $KEY_ID_LONG"
+          echo "✅ GPG Key ID (Short for Gradle): $KEY_ID_SHORT"
           
           # 配置 GPG 以在非交互式环境中工作
           mkdir -p ~/.gnupg
