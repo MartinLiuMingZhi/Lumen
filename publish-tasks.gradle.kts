@@ -92,24 +92,31 @@ tasks.register("publishAllToMavenCentral") {
     
     // 明确指定执行顺序，确保依赖关系
     // 注意：这些约束只在并行执行时生效
-    val publishCore = tasks.named(":lumen-core:publishReleasePublicationToMavenCentralRepository")
-    val publishTransform = tasks.named(":lumen-transform:publishReleasePublicationToMavenCentralRepository")
-    val publishView = tasks.named(":lumen-view:publishReleasePublicationToMavenCentralRepository")
-    val publishLumen = tasks.named(":lumen:publishReleasePublicationToMavenCentralRepository")
-    
-    // lumen-transform 必须在 lumen-core 之后
-    publishTransform.configure {
-        mustRunAfter(publishCore)
-    }
-    
-    // lumen-view 必须在 lumen-core 和 lumen-transform 之后
-    publishView.configure {
-        mustRunAfter(publishCore, publishTransform)
-    }
-    
-    // lumen 聚合模块必须在所有子模块之后
-    publishLumen.configure {
-        mustRunAfter(publishCore, publishTransform, publishView)
+    // 使用 afterEvaluate 确保任务已经创建
+    afterEvaluate {
+        try {
+            val publishCore = tasks.findByPath(":lumen-core:publishReleasePublicationToMavenCentralRepository")
+            val publishTransform = tasks.findByPath(":lumen-transform:publishReleasePublicationToMavenCentralRepository")
+            val publishView = tasks.findByPath(":lumen-view:publishReleasePublicationToMavenCentralRepository")
+            val publishLumen = tasks.findByPath(":lumen:publishReleasePublicationToMavenCentralRepository")
+            
+            if (publishCore != null && publishTransform != null) {
+                // lumen-transform 必须在 lumen-core 之后
+                publishTransform.mustRunAfter(publishCore)
+            }
+            
+            if (publishCore != null && publishTransform != null && publishView != null) {
+                // lumen-view 必须在 lumen-core 和 lumen-transform 之后
+                publishView.mustRunAfter(publishCore, publishTransform)
+            }
+            
+            if (publishCore != null && publishTransform != null && publishView != null && publishLumen != null) {
+                // lumen 聚合模块必须在所有子模块之后
+                publishLumen.mustRunAfter(publishCore, publishTransform, publishView)
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to configure publish task dependencies: ${e.message}")
+        }
     }
     
     doLast {

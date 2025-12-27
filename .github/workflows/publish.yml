@@ -366,6 +366,12 @@ jobs:
           if [ -f secret.gpg ] && [ -s secret.gpg ] && grep -q "BEGIN PGP PRIVATE KEY BLOCK" secret.gpg; then
             echo "✅ GPG key successfully exported to secret.gpg"
             echo "   File size: $(wc -c < secret.gpg) bytes"
+            echo "   File location: $(pwd)/secret.gpg"
+            echo "   File absolute path: $(realpath secret.gpg 2>/dev/null || pwd)/secret.gpg"
+            # 确保文件权限正确
+            chmod 600 secret.gpg
+            # 将文件路径保存到环境变量，供后续步骤使用
+            echo "GPG_KEY_FILE=$(pwd)/secret.gpg" >> $GITHUB_ENV
           else
             echo "❌ Failed to export GPG key after all methods"
             echo "   This will cause signing to fail"
@@ -381,9 +387,39 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SIGNING_KEY_ID: ${{ env.GPG_KEY_ID }}
           SIGNING_PASSWORD: ${{ secrets.GPG_PASSPHRASE }}
-          SIGNING_SECRET_KEY_RING_FILE: secret.gpg
+          SIGNING_SECRET_KEY_RING_FILE: ${{ env.GPG_KEY_FILE || 'secret.gpg' }}
         run: |
           VERSION="${{ needs.pre-check.outputs.version }}"
+          
+          # 确定 secret.gpg 文件路径
+          GPG_KEY_FILE="${SIGNING_SECRET_KEY_RING_FILE:-secret.gpg}"
+          
+          # 验证 secret.gpg 文件是否存在
+          if [ ! -f "$GPG_KEY_FILE" ] || [ ! -s "$GPG_KEY_FILE" ]; then
+            echo "❌ secret.gpg file not found or empty"
+            echo "   Looking for: $GPG_KEY_FILE"
+            echo "   Current directory: $(pwd)"
+            echo "   Files in current directory:"
+            ls -la | head -20
+            echo "   Looking for secret.gpg..."
+            find . -name "secret.gpg" 2>/dev/null || echo "   secret.gpg not found"
+            # 尝试从环境变量获取路径
+            if [ -n "${{ env.GPG_KEY_FILE }}" ]; then
+              echo "   Trying path from env: ${{ env.GPG_KEY_FILE }}"
+              if [ -f "${{ env.GPG_KEY_FILE }}" ]; then
+                GPG_KEY_FILE="${{ env.GPG_KEY_FILE }}"
+                echo "✅ Found secret.gpg at: $GPG_KEY_FILE"
+              fi
+            fi
+            if [ ! -f "$GPG_KEY_FILE" ]; then
+              exit 1
+            fi
+          fi
+          
+          echo "✅ secret.gpg file found: $(ls -lh "$GPG_KEY_FILE")"
+          echo "   Using file: $GPG_KEY_FILE"
+          # 更新环境变量以使用正确的路径
+          export SIGNING_SECRET_KEY_RING_FILE="$GPG_KEY_FILE"
           
           if [ -z "$SONATYPE_USERNAME" ] || [ -z "$SONATYPE_PASSWORD" ]; then
             echo "⚠️  Sonatype credentials not configured, skipping Maven Central publish"
@@ -402,7 +438,38 @@ jobs:
           echo "📦 Publishing modules: lumen-core, lumen-view, lumen-transform, lumen"
           echo "⚡ Using optimized parallel publishing with dependency management..."
           
+          # 先列出可用的发布任务（用于调试）
+          echo "📋 Available publish tasks:"
+          ./gradlew tasks --all --group=publishing 2>&1 | grep -i "publish" || true
+          
           # 使用聚合任务 + 并行执行优化
+          # 注意：使用 --dry-run 先验证任务是否存在
+          if ./gradlew publishAllToMavenCentral --dry-run --no-daemon 2>&1 | grep -q "publishAllToMavenCentral"; then
+            echo "✅ Task publishAllToMavenCentral found, proceeding with publish..."
+          else
+            echo "⚠️  Task publishAllToMavenCentral not found, trying individual tasks..."
+            # 如果聚合任务不存在，尝试单独发布每个模块
+            ./gradlew \
+              :lumen-core:publishReleasePublicationToMavenCentralRepository \
+              :lumen-transform:publishReleasePublicationToMavenCentralRepository \
+              :lumen-view:publishReleasePublicationToMavenCentralRepository \
+              :lumen:publishReleasePublicationToMavenCentralRepository \
+              --parallel \
+              --max-workers=4 \
+              --no-daemon \
+              --stacktrace \
+              --console=plain
+            if [ $? -eq 0 ]; then
+              echo "✅ Published successfully to Maven Central!"
+              echo "publish_success=true" >> $GITHUB_OUTPUT
+              echo "publish_skipped=false" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo "❌ Failed to publish"
+              exit 1
+            fi
+          fi
+          
           if ./gradlew publishAllToMavenCentral \
                       --parallel \
                       --max-workers=4 \
