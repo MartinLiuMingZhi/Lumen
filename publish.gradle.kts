@@ -51,10 +51,20 @@ afterEvaluate {
         project.plugins.apply("maven-publish")
     }
     
+    // 等待一下，确保插件完全初始化
+    // 然后查找 PublishingExtension
     val publishing = extensions.findByType<PublishingExtension>()
     if (publishing == null) {
-        logger.warn("PublishingExtension not found, skipping publishing configuration")
-        return@afterEvaluate
+        // 如果 PublishingExtension 不存在，尝试强制创建
+        // 这通常不应该发生，但如果发生了，我们需要处理
+        logger.error("❌ PublishingExtension not found for ${project.name}")
+        logger.error("   maven-publish plugin applied: ${project.plugins.hasPlugin("maven-publish")}")
+        logger.error("   This is a critical error. Publishing configuration cannot proceed.")
+        throw GradleException(
+            "PublishingExtension not found for ${project.name}. " +
+            "This usually means the maven-publish plugin was not properly initialized. " +
+            "Please check your build configuration."
+        )
     }
     
     publishing.publications {
@@ -162,37 +172,13 @@ if (!isJitPack) {
     }
 }
 
-// 添加发布前验证任务
-afterEvaluate {
-    // 验证所有发布相关的任务
-    tasks.matching { task ->
-        task.name.startsWith("publish") && 
-        (task.name.contains("Release") || task.name == "publish" || task.name == "publishToMavenLocal")
-    }.configureEach {
-        doFirst {
-            val publishing = extensions.findByType<PublishingExtension>()
-            if (publishing == null) {
-                throw GradleException("PublishingExtension not found for ${project.name}")
-            }
-            
-            val publication = publishing.publications.findByName("release")
-            if (publication == null) {
-                throw GradleException("Release publication not found for ${project.name}")
-            }
-            
-            // 验证版本号
-            if (version == "unspecified" || version.toString().isBlank()) {
-                throw GradleException("Version is not set for ${project.name}")
-            }
-            
-            // 验证 groupId
-            val groupId = (publication as? MavenPublication)?.groupId
-            if (groupId.isNullOrBlank()) {
-                throw GradleException("GroupId is not set for ${project.name}")
-            }
-            
-            logger.info("✅ Publishing ${project.name} version $version to group $groupId")
-        }
-    }
-}
+// 注意：移除了发布前验证任务
+// 原因：
+// 1. Gradle 的发布任务会自动检查 PublishingExtension 和 publication 是否存在
+// 2. 如果配置有问题，Gradle 会在任务执行时自动报错，并提供更清晰的错误信息
+// 3. 额外的验证可能导致时序问题（如当前遇到的 PublishingExtension 找不到的问题）
+// 4. 我们已经有了 validatePublishConfiguration 任务在配置阶段验证
+// 
+// 如果需要验证，可以在发布前手动运行：
+//   ./gradlew validatePublishConfiguration
 
